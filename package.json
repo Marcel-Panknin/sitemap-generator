@@ -68,12 +68,16 @@
   },
   "eslintConfig": {
     "parserOptions": {
-      "ecmaVersion": 6
+      "ecmaVersion": 2017
     },
     "extends": "eslint:recommended",
     "env": {
       "node": true,
-      "jest": true
+      "jest": true,
+      "es6": true
+    },
+    "rules": {
+      "no-console": "off"
     }
   },
   "husky": {
