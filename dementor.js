@@ -1,5 +1,6 @@
 const { execSync } = require('child_process');
 const fs = require('fs');
+const path = require('path');
 const puppeteer = require('puppeteer');
 
 class Dementor {
@@ -9,11 +10,12 @@ class Dementor {
       'https://www.tk.de/techniker/versicherung/tk-leistungen/weitere-leistungen-2078462';
     this.localPort = options.localPort || 3000;
     this.sitemapFile = options.sitemapFile || './dementor-sitemap.xml';
+    this.markdownOutputDir = options.markdownOutputDir || './markdown-output';
     this.tempHtmlFile = './temp-page.html';
     this.server = null;
     this.baseUrl = this.extractBaseUrl(this.targetUrl);
-    this.currentLevel = 1;
-    this.maxLevel = 3;
+    this.currentLevel = 0; // Start mit Level 0 (SitemapGenerator)
+    this.maxLevel = 3; // Jetzt 4 Level insgesamt (0, 1, 2, 3)
     this.minUrlsRequired = 3; // Minimum URLs needed to consider success
 
     // User-Agent Pool for rotation
@@ -26,6 +28,217 @@ class Dementor {
     ];
 
     this.currentUserAgent = this.getRandomUserAgent();
+  }
+
+  // LEVEL 0: SitemapGenerator (Standard Library Approach)
+  async fetchWithSitemapGenerator() {
+    console.log(`📚 LEVEL 0: SitemapGenerator Library Attack...`);
+    console.log(`🎯 Target: ${this.targetUrl}`);
+
+    return new Promise((resolve, reject) => {
+      try {
+        const SitemapGenerator = require('sitemap-generator');
+
+        // Erstelle den Sitemap Generator mit der gleichen Konfiguration wie in test.js
+        const generator = SitemapGenerator(this.targetUrl, {
+          filepath: null, // Kein File schreiben, nur URLs sammeln
+          stripQuerystring: false,
+          maxEntriesPerFile: 50000,
+          changeFreq: 'weekly',
+          lastMod: true,
+          userAgent: this.currentUserAgent,
+          ignoreAMP: false
+        });
+
+        const discoveredUrls = [];
+        let isCompleted = false;
+
+        // Event-Handler für URL-Sammlung
+        generator.on('add', url => {
+          discoveredUrls.push(url);
+          console.log(`✅ URL gefunden: ${url}`);
+        });
+
+        generator.on('ignore', url => {
+          console.log(`⚠️ URL ignoriert: ${url}`);
+        });
+
+        generator.on('error', error => {
+          console.error(
+            `❌ Crawling-Fehler: ${error.message} (${error.code}) - URL: ${
+              error.url
+            }`
+          );
+        });
+
+        generator.on('done', () => {
+          if (!isCompleted) {
+            isCompleted = true;
+            console.log(
+              `✅ Level 0 Success: ${discoveredUrls.length} URLs discovered`
+            );
+
+            // Generiere HTML-ähnliche Struktur für Kompatibilität mit extractUrlsFromHtml
+            const mockHtml = this.generateMockHtmlFromUrls(discoveredUrls);
+            resolve(mockHtml);
+          }
+        });
+
+        // Erweiterte Crawler-Konfiguration
+        const crawler = generator.getCrawler();
+        crawler.maxConcurrency = 5;
+        crawler.interval = 100;
+        crawler.timeout = 15000;
+
+        // Statische URLs hinzufügen
+        crawler.on('crawlstart', () => {
+          console.log('🚀 SitemapGenerator gestartet...');
+          const sitemap = generator.getSitemap();
+
+          const staticUrls = [
+            '/leistungen/',
+            '/leistungen/leistungen-a-z/',
+            '/kontakt/',
+            '/impressum/',
+            '/datenschutz/'
+          ];
+
+          staticUrls.forEach(url => {
+            sitemap.addURL(url);
+            console.log(`📌 Statische URL hinzugefügt: ${url}`);
+          });
+        });
+
+        // Timeout als Fallback
+        const timeout = setTimeout(() => {
+          if (!isCompleted) {
+            isCompleted = true;
+            console.log(
+              `⏰ Level 0 Timeout: ${
+                discoveredUrls.length
+              } URLs collected so far`
+            );
+            const mockHtml = this.generateMockHtmlFromUrls(discoveredUrls);
+            resolve(mockHtml);
+          }
+        }, 60000); // 60 Sekunden Timeout
+
+        // Starte den Generator
+        generator.start();
+
+        // Cleanup bei Completion
+        generator.on('done', () => {
+          clearTimeout(timeout);
+        });
+      } catch (error) {
+        console.error(`❌ Level 0 Failed: ${error.message}`);
+        reject(error);
+      }
+    });
+  }
+
+  // Hilfsmethode: Generiere Mock-HTML aus URLs für Kompatibilität
+  generateMockHtmlFromUrls(urls) {
+    let mockHtml = '<html><head><title>Mock HTML</title></head><body>';
+    urls.forEach(url => {
+      mockHtml += `<a href="${url}">${url}</a>\n`;
+    });
+    mockHtml += '</body></html>';
+    return mockHtml;
+  }
+
+  // Python Dependencies Management
+  async ensurePythonDependencies() {
+    console.log('🐍 Checking Python dependencies...');
+
+    try {
+      // Check if requirements.txt exists
+      const requirementsPath = path.join(__dirname, 'requirements.txt');
+      if (!fs.existsSync(requirementsPath)) {
+        console.log('⚠️ requirements.txt not found, skipping dependency check');
+        return false;
+      }
+
+      // Try to import required packages to check if they're installed
+      try {
+        execSync(
+          'python3 -c "import bs4, markdownify, requests, lxml, urllib3, xmltodict"',
+          {
+            stdio: 'pipe'
+          }
+        );
+        console.log('✅ All Python dependencies are installed');
+        return true;
+      } catch (importError) {
+        console.log('📦 Installing Python dependencies...');
+
+        // Install dependencies
+        execSync(`python3 -m pip install -r "${requirementsPath}"`, {
+          stdio: 'inherit'
+        });
+
+        console.log('✅ Python dependencies installed successfully');
+        return true;
+      }
+    } catch (error) {
+      console.error(
+        `❌ Failed to install Python dependencies: ${error.message}`
+      );
+      console.log(
+        '💡 Please install manually: python3 -m pip install -r requirements.txt'
+      );
+      return false;
+    }
+  }
+
+  // Markdown Conversion
+  async convertSitemapToMarkdown() {
+    console.log('\n📝 Starting Markdown conversion...');
+
+    try {
+      // Ensure Python dependencies are installed
+      const depsInstalled = await this.ensurePythonDependencies();
+      if (!depsInstalled) {
+        console.log(
+          '⚠️ Skipping Markdown conversion due to missing dependencies'
+        );
+        return false;
+      }
+
+      // Check if sitemap file exists
+      if (!fs.existsSync(this.sitemapFile)) {
+        console.log(`❌ Sitemap file not found: ${this.sitemapFile}`);
+        return false;
+      }
+
+      // Check if markdown_converter.py exists
+      const converterPath = path.join(__dirname, 'markdown_converter.py');
+      if (!fs.existsSync(converterPath)) {
+        console.log(`❌ Markdown converter not found: ${converterPath}`);
+        return false;
+      }
+
+      console.log(`📄 Sitemap: ${this.sitemapFile}`);
+      console.log(`📁 Output: ${this.markdownOutputDir}`);
+
+      // Execute Python markdown converter
+      const command = `python3 "${converterPath}" --sitemap "${
+        this.sitemapFile
+      }" --output "${this.markdownOutputDir}"`;
+      console.log(`🚀 Executing: ${command}`);
+
+      execSync(command, {
+        stdio: 'inherit',
+        cwd: __dirname
+      });
+
+      console.log('✅ Markdown conversion completed successfully!');
+      console.log(`📁 Markdown files saved to: ${this.markdownOutputDir}`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Markdown conversion failed: ${error.message}`);
+      return false;
+    }
   }
 
   // Extract base URL from target URL
@@ -593,13 +806,15 @@ class Dementor {
     try {
       console.log(`🌑 DEMENTOR EVOLUTION - Escalating Attack System`);
       console.log(`🎯 Target: ${this.targetUrl}`);
-      console.log(`📋 Strategy: Level 1 → Level 2 → Level 3 (until success)\n`);
+      console.log(
+        `📋 Strategy: Level 0 → Level 1 → Level 2 → Level 3 (until success)\n`
+      );
 
       let html = null;
 
       // Try each level until success
       for (
-        this.currentLevel = 1;
+        this.currentLevel = 0;
         this.currentLevel <= this.maxLevel;
         this.currentLevel++
       ) {
@@ -608,6 +823,9 @@ class Dementor {
 
           // Fetch HTML based on current level
           switch (this.currentLevel) {
+            case 0:
+              html = await this.fetchWithSitemapGenerator();
+              break;
             case 1:
               html = await this.fetchWithEnhancedCurl();
               break;
@@ -639,6 +857,20 @@ class Dementor {
               })`
             );
             console.log(`🗺️ Sitemap saved to: ${this.sitemapFile}`);
+
+            // Start Markdown conversion after successful sitemap generation
+            const markdownSuccess = await this.convertSitemapToMarkdown();
+            if (markdownSuccess) {
+              console.log(`\n🎉 COMPLETE WORKFLOW SUCCESS!`);
+              console.log(`🗺️ Sitemap: ${this.sitemapFile}`);
+              console.log(`📝 Markdown: ${this.markdownOutputDir}`);
+            } else {
+              console.log(
+                `\n⚠️ Sitemap generated but Markdown conversion failed`
+              );
+              console.log(`🗺️ Sitemap available at: ${this.sitemapFile}`);
+            }
+
             await this.cleanup();
             return;
           } else {
@@ -674,13 +906,14 @@ class Dementor {
 
       // If all levels failed
       console.log(
-        `\n💀 DEMENTOR DEFEATED: All ${
+        `\n💀 DEMENTOR DEFEATED: All ${this.maxLevel + 1} levels (0-${
           this.maxLevel
-        } levels failed to extract sufficient URLs`
+        }) failed to extract sufficient URLs`
       );
       console.log(
         `📊 Final result: ${this.countUrlsInSitemap()} URLs extracted`
       );
+      console.log(`🎯 Required: ${this.minUrlsRequired} URLs minimum`);
       console.log(`🛡️ Target has strong anti-bot protection`);
 
       await this.cleanup();
@@ -718,7 +951,7 @@ function displayBanner() {
     '🌑 EVOLUTION - Eskalierendes Angriffssystem gegen Anti-Bot-Schutz 🌑'
   );
   console.log(
-    '⚡ Level 1: Enhanced cURL → Level 2: Puppeteer → Level 3: Full Stealth ⚡'
+    '⚡ Level 0: SitemapGen → Level 1: cURL → Level 2: Puppeteer → Level 3: Stealth ⚡'
   );
   console.log(
     '🕷️ Durchdringt das Web und extrahiert jede Spur von Hyperlinks 🕷️'
@@ -738,8 +971,9 @@ async function promptForUrl() {
   return new Promise(resolve => {
     displayBanner();
     console.log('🌑 DEMENTOR EVOLUTION - Interaktiver Modus\n');
-    console.log('Der Dementor nutzt ein eskalierendes 3-Level-Angriffssystem:');
-    console.log('📊 Level 1: Enhanced cURL mit Header-Rotation');
+    console.log('Der Dementor nutzt ein eskalierendes 4-Level-Angriffssystem:');
+    console.log('📚 Level 0: SitemapGenerator Library Attack');
+    console.log('🌐 Level 1: Enhanced cURL mit Header-Rotation');
     console.log('🚀 Level 2: Puppeteer Browser mit JavaScript-Ausführung');
     console.log('🥷 Level 3: Full Stealth Mode mit Anti-Detection\n');
     console.log(
