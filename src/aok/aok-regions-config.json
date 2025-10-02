@@ -1,0 +1,113 @@
+{
+  "regions": [
+    {
+      "code": "BAY",
+      "name": "Bayern",
+      "fullName": "AOK Bayern - Die Gesundheitskasse",
+      "plz": "80331",
+      "city": "München",
+      "website": "https://www.aok.de/pk/bayern/",
+      "description": "Zuständig für Bayern"
+    },
+    {
+      "code": "BW",
+      "name": "Baden-Württemberg",
+      "fullName": "AOK Baden-Württemberg",
+      "plz": "70173",
+      "city": "Stuttgart",
+      "website": "https://www.aok.de/pk/bw/",
+      "description": "Zuständig für Baden-Württemberg"
+    },
+    {
+      "code": "NO",
+      "name": "Nordost",
+      "fullName": "AOK Nordost - Die Gesundheitskasse",
+      "plz": "10115",
+      "city": "Berlin",
+      "website": "https://www.aok.de/pk/nordost/",
+      "description": "Zuständig für Berlin, Brandenburg, Mecklenburg-Vorpommern"
+    },
+    {
+      "code": "NW",
+      "name": "Nordwest",
+      "fullName": "AOK NordWest - Die Gesundheitskasse",
+      "plz": "44135",
+      "city": "Dortmund",
+      "website": "https://www.aok.de/pk/nordwest/",
+      "description": "Zuständig für Schleswig-Holstein, Hamburg, Westfalen-Lippe"
+    },
+    {
+      "code": "HE",
+      "name": "Hessen",
+      "fullName": "AOK - Die Gesundheitskasse in Hessen",
+      "plz": "60311",
+      "city": "Frankfurt am Main",
+      "website": "https://www.aok.de/pk/hessen/",
+      "description": "Zuständig für Hessen"
+    },
+    {
+      "code": "RH",
+      "name": "Rheinland-Hamburg",
+      "fullName": "AOK Rheinland/Hamburg - Die Gesundheitskasse",
+      "plz": "50667",
+      "city": "Köln",
+      "website": "https://www.aok.de/pk/rh/",
+      "description": "Zuständig für Rheinland und Hamburg"
+    },
+    {
+      "code": "RP",
+      "name": "Rheinland-Pfalz-Saarland",
+      "fullName": "AOK Rheinland-Pfalz/Saarland-Die Gesundheitskasse",
+      "plz": "55116",
+      "city": "Mainz",
+      "website": "https://www.aok.de/pk/rps/",
+      "description": "Zuständig für Rheinland-Pfalz und Saarland"
+    },
+    {
+      "code": "SA",
+      "name": "Sachsen-Anhalt",
+      "fullName": "AOK Sachsen-Anhalt - Die Gesundheitskasse",
+      "plz": "39104",
+      "city": "Magdeburg",
+      "website": "https://www.aok.de/pk/sachsen-anhalt/",
+      "description": "Zuständig für Sachsen-Anhalt"
+    },
+    {
+      "code": "NI",
+      "name": "Niedersachsen",
+      "fullName": "AOK - Die Gesundheitskasse für Niedersachsen",
+      "plz": "30159",
+      "city": "Hannover",
+      "website": "https://www.aok.de/pk/niedersachsen/",
+      "description": "Zuständig für Niedersachsen"
+    },
+    {
+      "code": "PL",
+      "name": "PLUS",
+      "fullName": "AOK PLUS - Die Gesundheitskasse für Sachsen und Thüringen",
+      "plz": "01067",
+      "city": "Dresden",
+      "website": "https://www.aok.de/pk/plus/",
+      "description": "Zuständig für Sachsen und Thüringen"
+    },
+    {
+      "code": "BR",
+      "name": "Bremen-Bremerhaven",
+      "fullName": "AOK Bremen / Bremerhaven",
+      "plz": "28195",
+      "city": "Bremen",
+      "website": "https://www.aok.de/pk/bremen/",
+      "description": "Zuständig für Bremen und Bremerhaven"
+    }
+  ],
+  "metadata": {
+    "version": "1.0.0",
+    "lastUpdated": "2025-10-02",
+    "source": "https://www.aok.de",
+    "notes": [
+      "Diese Regionscodes werden im SessionStorage unter dem Key 'aoklv' gespeichert",
+      "Die PLZ-Werte sind Beispiele für die jeweilige Region",
+      "Jede PLZ wird vom Server der entsprechenden AOK-Region zugeordnet"
+    ]
+  }
+}

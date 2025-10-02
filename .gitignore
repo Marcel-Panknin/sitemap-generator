@@ -31,3 +31,4 @@ node_modules
 
 # Markdown output directory
 markdown-output/
+html-cache/

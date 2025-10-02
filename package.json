@@ -34,7 +34,8 @@
     "puppeteer": "^24.22.3",
     "simplecrawler": "1.1.9",
     "sitemap-generator": "^8.5.1",
-    "url-parse": "1.4.7"
+    "url-parse": "1.4.7",
+    "@supabase/supabase-js": "^2.46.1"
   },
   "engines": {
     "node": ">=10"

@@ -14,6 +14,7 @@ import re
 import time
 import random
 import subprocess
+import hashlib
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
@@ -22,6 +23,7 @@ from typing import List, Dict, Optional
 
 from bs4 import BeautifulSoup
 from markdownify import markdownify as md
+import requests
 
 
 class DementorHTMLFetcher:
@@ -41,9 +43,45 @@ class DementorHTMLFetcher:
             'fr-FR,fr;q=0.9,en;q=0.8',
             'es-ES,es;q=0.9,en;q=0.8'
         ]
+        # Path to Node Puppeteer helper
+        self.node_helper_path = Path(__file__).parent / 'scripts' / 'fetch_html.js'
+    
+    def _curl_command(self, url: str, user_agent: str, accept_language: str, extra_args: Optional[List[str]] = None) -> List[str]:
+        """Builds a curl command with common headers and options"""
+        base_cmd = [
+            'curl',
+            '-s',
+            '-L',
+            '-H', f'User-Agent: {user_agent}',
+            '-H', 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+            '-H', f'Accept-Language: {accept_language}',
+            '-H', 'Accept-Encoding: gzip, deflate, br',
+            '-H', 'DNT: 1',
+            '-H', 'Connection: keep-alive',
+            '-H', 'Upgrade-Insecure-Requests: 1',
+            '-H', 'Sec-Fetch-Dest: document',
+            '-H', 'Sec-Fetch-Mode: navigate',
+            '-H', 'Sec-Fetch-Site: none',
+            '-H', 'Cache-Control: max-age=0',
+            '--compressed',
+            '--max-time', '35',
+            '--connect-timeout', '12',
+            '--retry', '5',
+            '--retry-delay', '2',
+            '--retry-connrefused',
+            '--retry-all-errors',
+            url
+        ]
+        if extra_args:
+            # Insert after 'curl' to ensure flags are applied
+            return ['curl'] + extra_args + base_cmd[1:]
+        return base_cmd
+    
+    def _run_cmd(self, cmd: List[str], timeout: int = 40) -> subprocess.CompletedProcess:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     
     def fetch_html(self, url: str) -> Optional[str]:
-        """Fetches HTML using cURL with Dementor's anti-bot techniques"""
+        """Fetches HTML robustly with cURL, Requests fallback, and Puppeteer as last resort"""
         try:
             # Select random user agent and accept language
             current_user_agent = random.choice(self.user_agents)
@@ -57,46 +95,77 @@ class DementorHTMLFetcher:
             print(f"  ⏳ Waiting {delay:.1f}s before request...")
             time.sleep(delay)
             
-            # Build cURL command exactly like dementor.js
-            curl_command = [
-                'curl',
-                '-s',
-                '-L',
-                '-H', f'User-Agent: {current_user_agent}',
-                '-H', 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-                '-H', f'Accept-Language: {random_accept_language}',
-                '-H', 'Accept-Encoding: gzip, deflate, br',
-                '-H', 'DNT: 1',
-                '-H', 'Connection: keep-alive',
-                '-H', 'Upgrade-Insecure-Requests: 1',
-                '-H', 'Sec-Fetch-Dest: document',
-                '-H', 'Sec-Fetch-Mode: navigate',
-                '-H', 'Sec-Fetch-Site: none',
-                '-H', 'Cache-Control: max-age=0',
-                '--compressed',
-                '--max-time', '30',
-                '--connect-timeout', '10',
-                '--retry', '3',
-                '--retry-delay', '2',
-                url
-            ]
-            
-            # Execute cURL command
-            result = subprocess.run(
-                curl_command,
-                capture_output=True,
-                text=True,
-                timeout=35  # Slightly longer than curl's max-time
-            )
-            
-            if result.returncode == 0 and result.stdout and len(result.stdout) > 0:
-                print(f"  ✅ Success: {len(result.stdout)} bytes")
+            # Attempt 1: cURL default
+            result = self._run_cmd(self._curl_command(url, current_user_agent, random_accept_language))
+            if result.returncode == 0 and result.stdout:
+                print(f"  ✅ cURL Success: {len(result.stdout)} bytes")
                 return result.stdout
             else:
                 error_msg = result.stderr if result.stderr else f"Empty response (return code: {result.returncode})"
                 print(f"  ❌ cURL failed: {error_msg}")
-                return None
-                
+            
+            # Attempt 2: cURL with HTTP/1.1 fallback
+            print("  🔁 Retrying with HTTP/1.1...")
+            result = self._run_cmd(self._curl_command(url, current_user_agent, random_accept_language, extra_args=['--http1.1']))
+            if result.returncode == 0 and result.stdout:
+                print(f"  ✅ cURL (HTTP/1.1) Success: {len(result.stdout)} bytes")
+                return result.stdout
+            else:
+                print(f"  ❌ cURL (HTTP/1.1) failed: {result.stderr or 'Empty response'}")
+            
+            # Attempt 3: cURL insecure as last network-level fallback
+            print("  ⚠️ Retrying with insecure SSL (last resort cURL)...")
+            result = self._run_cmd(self._curl_command(url, current_user_agent, random_accept_language, extra_args=['-k', '--http1.1']))
+            if result.returncode == 0 and result.stdout:
+                print(f"  ✅ cURL (insecure) Success: {len(result.stdout)} bytes")
+                return result.stdout
+            else:
+                print(f"  ❌ cURL (insecure) failed: {result.stderr or 'Empty response'}")
+            
+            # Small delay before HTTP client fallback
+            time.sleep(random.uniform(0.3, 0.8))
+            
+            # Attempt 4: Python Requests fallback
+            print("  🌐 Fallback via Python requests...")
+            try:
+                session = requests.Session()
+                session.headers.update({
+                    'User-Agent': current_user_agent,
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': random_accept_language,
+                    'Cache-Control': 'no-cache'
+                })
+                resp = session.get(url, timeout=(12, 35), allow_redirects=True)
+                if resp.status_code == 200 and resp.text:
+                    print(f"  ✅ requests Success: {len(resp.text)} bytes")
+                    return resp.text
+                else:
+                    print(f"  ❌ requests failed: HTTP {resp.status_code}")
+            except requests.RequestException as e:
+                print(f"  ❌ requests error: {e}")
+            
+            # Attempt 5: Puppeteer via Node helper
+            if self.node_helper_path.exists():
+                print("  🎭 Fallback via Puppeteer (Node helper)...")
+                try:
+                    node_cmd = ['node', str(self.node_helper_path), url]
+                    node_result = subprocess.run(node_cmd, capture_output=True, text=True, timeout=70)
+                    if node_result.returncode == 0 and node_result.stdout:
+                        print(f"  ✅ Puppeteer Success: {len(node_result.stdout)} bytes")
+                        return node_result.stdout
+                    else:
+                        err = node_result.stderr or 'Empty response'
+                        print(f"  ❌ Puppeteer failed: {err}")
+                except subprocess.TimeoutExpired:
+                    print("  ❌ Puppeteer timeout")
+                except Exception as e:
+                    print(f"  ❌ Puppeteer error: {e}")
+            else:
+                print("  ⚠️ Node helper not found, skipping Puppeteer fallback")
+            
+            # All attempts failed
+            return None
+        
         except subprocess.TimeoutExpired:
             print(f"  ❌ Timeout fetching {url}")
             return None
@@ -293,6 +362,9 @@ class FileManager:
     def __init__(self, output_dir: str):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
+        self.raw_html_dir = self.output_dir / 'raw_html'
+        self.raw_html_dir.mkdir(exist_ok=True)
+        self.failures: List[Dict[str, str]] = []
         self.metadata = {
             'generated_at': datetime.now().isoformat(),
             'files': [],
@@ -302,6 +374,7 @@ class FileManager:
                 'failed': 0
             }
         }
+        self.metadata['raw_html_files'] = []
     
     def url_to_filename(self, url: str) -> str:
         """Converts URL to a safe filename"""
@@ -330,6 +403,38 @@ class FileManager:
         
         return f"{filename}.md"
     
+    def _url_hash(self, url: str) -> str:
+        return hashlib.sha1(url.encode('utf-8')).hexdigest()
+    
+    def raw_html_path_for(self, url: str) -> Path:
+        parsed = urlparse(url)
+        domain = parsed.netloc.replace('www.', '').replace('.', '-')
+        return self.raw_html_dir / f"{domain}-{self._url_hash(url)}.html"
+    
+    def save_raw_html(self, content: str, url: str) -> str:
+        """Saves raw HTML content to cache directory"""
+        filepath = self.raw_html_path_for(url)
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(content)
+        self.metadata['raw_html_files'].append({
+            'filename': filepath.name,
+            'url': url,
+            'size': len(content),
+            'created_at': datetime.now().isoformat()
+        })
+        return str(filepath)
+    
+    def load_raw_html_if_exists(self, url: str) -> Optional[str]:
+        """Loads raw HTML from cache if available"""
+        filepath = self.raw_html_path_for(url)
+        if filepath.exists():
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    return f.read()
+            except Exception:
+                return None
+        return None
+    
     def save_markdown(self, content: str, url: str) -> str:
         """Saves markdown content to file"""
         filename = self.url_to_filename(url)
@@ -353,6 +458,24 @@ class FileManager:
         metadata_path = self.output_dir / 'metadata.json'
         with open(metadata_path, 'w', encoding='utf-8') as f:
             json.dump(self.metadata, f, indent=2, ensure_ascii=False)
+    
+    def record_failure(self, url: str, reason: str):
+        self.failures.append({'url': url, 'reason': reason, 'time': datetime.now().isoformat()})
+    
+    def save_failures_csv(self):
+        if not self.failures:
+            return
+        csv_path = self.output_dir / 'fetch_failures.csv'
+        try:
+            with open(csv_path, 'w', encoding='utf-8') as f:
+                f.write('url,reason,time\n')
+                for item in self.failures:
+                    # Escape commas in reason
+                    reason = item['reason'].replace(',', ';')
+                    f.write(f"{item['url']},{reason},{item['time']}\n")
+            print(f"  🧾 Failures saved to: {csv_path}")
+        except Exception as e:
+            print(f"  ⚠️ Could not write failures CSV: {e}")
 
 
 class SitemapParser:
@@ -415,11 +538,20 @@ class DementorMarkdownConverter:
             print(f"📄 Processing {i}/{len(urls)}: {url}")
             
             try:
-                # Fetch HTML
-                html = self.fetcher.fetch_html(url)
-                if not html:
-                    self.file_manager.metadata['stats']['failed'] += 1
-                    continue
+                # Try cache first
+                html = self.file_manager.load_raw_html_if_exists(url)
+                if html:
+                    print("  📦 Cache hit (raw HTML)")
+                else:
+                    # Fetch HTML
+                    html = self.fetcher.fetch_html(url)
+                    if not html:
+                        self.file_manager.metadata['stats']['failed'] += 1
+                        self.file_manager.record_failure(url, 'All fetch attempts failed')
+                        continue
+                    # Save raw HTML to cache
+                    cached_path = self.file_manager.save_raw_html(html, url)
+                    print(f"  💾 Raw HTML cached: {cached_path}")
                 
                 # Clean HTML
                 print(f"  🧹 Cleaning HTML...")
@@ -438,11 +570,13 @@ class DementorMarkdownConverter:
             except Exception as e:
                 print(f"  ❌ Error processing {url}: {e}")
                 self.file_manager.metadata['stats']['failed'] += 1
+                self.file_manager.record_failure(url, str(e))
             
             print()
         
         # Save metadata
         self.file_manager.save_metadata()
+        self.file_manager.save_failures_csv()
         
         # Print summary
         stats = self.file_manager.metadata['stats']
